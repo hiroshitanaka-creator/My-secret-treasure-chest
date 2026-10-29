@@ -106,7 +106,8 @@ def parse_action(
         raise ActionValidationError("output_too_long")
     try:
         data = json.loads(raw)
-    except json.JSONDecodeError:
+    except (ValueError, RecursionError):
+        # RecursionError: deeply nested input (e.g. "[[[[...]]]]") on some Python versions.
         raise ActionValidationError("invalid_json") from None
     if not isinstance(data, dict):
         raise ActionValidationError("not_an_object")

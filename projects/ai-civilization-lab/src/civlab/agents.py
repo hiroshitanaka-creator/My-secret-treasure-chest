@@ -8,6 +8,7 @@ The World Engine later checks feasibility and applies the action.
 
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass, field
 from typing import Any
@@ -34,7 +35,7 @@ from civlab.world import WorldRules, WorldState
 @dataclass(frozen=True)
 class CallRecord:
     attempt: int
-    outcome: str  # "ok" | "transient_error" | "permanent_error"
+    outcome: str  # "ok" | "transient_error" | "permanent_error" | "unexpected_error"
     paid: bool
     model: str
     input_tokens: int
@@ -136,7 +137,8 @@ class ResidentAgent:
             response_schema=action_json_schema(),
         )
         paid = self.adapter.is_paid
-        est_in = estimate_input_tokens(instructions, input_text) if paid else 0
+        schema_text = json.dumps(request.response_schema)
+        est_in = estimate_input_tokens(instructions, input_text, schema_text) if paid else 0
         max_out = self.adapter.max_output_tokens if paid else 0
 
         calls: list[CallRecord] = []
@@ -172,6 +174,23 @@ class ResidentAgent:
                 if transient:
                     continue
                 break
+            except BaseException as exc:
+                # Unexpected failure (bug, interrupt): count the attempt, then stop the run.
+                cost = self.guard.after_call(paid=paid, input_tokens=est_in, output_tokens=max_out)
+                log(
+                    CallRecord(
+                        attempt=attempt,
+                        outcome="unexpected_error",
+                        paid=paid,
+                        model=self.adapter.model,
+                        input_tokens=est_in,
+                        output_tokens=max_out,
+                        usage_reported=False,
+                        estimated_cost_usd=cost,
+                        error=redact(f"{type(exc).__name__}: {exc}")[:500],
+                    )
+                )
+                raise
             cost = self.guard.after_call(
                 paid=paid,
                 input_tokens=response.usage.input_tokens,

@@ -79,3 +79,10 @@ def test_schema_lists_every_action_and_requires_all_fields() -> None:
     assert schema["properties"]["action"]["enum"] == list(ALL_ACTIONS)
     assert set(schema["required"]) == set(schema["properties"])
     assert schema["additionalProperties"] is False
+
+
+def test_deeply_nested_output_is_rejected_not_crashing() -> None:
+    # On Python 3.11 json.loads raises RecursionError here (newer versions parse it and
+    # reject it as not an object). Either way it must be a format error, not a crash.
+    with pytest.raises(ActionValidationError, match="invalid_json|not_an_object"):
+        parse("[" * 999 + "]" * 999)

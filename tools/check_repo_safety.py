@@ -96,7 +96,8 @@ def scan_head() -> list[str]:
 def scan_history() -> list[str]:
     findings = []
     commit = path = ""
-    log = git("log", "--all", "-p", "--no-color", "--unified=0", "--format=commit %H")
+    # -m: also show merge commits' changes against each parent.
+    log = git("log", "--all", "-p", "-m", "--no-color", "--unified=0", "--format=commit %H")
     for raw in log.splitlines():
         if raw.startswith("commit "):
             commit = raw.split()[1][:12]

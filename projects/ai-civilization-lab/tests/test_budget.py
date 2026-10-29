@@ -216,3 +216,28 @@ def test_pricing_requires_source_and_date() -> None:
     assert PRICING.is_configured
     with pytest.raises(ValueError):
         Pricing(-1.0, 1.0, "x", "y")
+
+
+def test_zero_price_does_not_count_as_configured() -> None:
+    # A zero price would make every cost estimate 0 and disable the cost cap.
+    assert not Pricing(0.0, 0.0, "x", "2026-10-29").is_configured
+    assert not Pricing(1.0, 0.0, "x", "2026-10-29").is_configured
+
+
+def test_unexpected_adapter_failure_is_still_counted(store) -> None:
+    def broken(req, n):
+        raise RuntimeError("bug in adapter post-processing")
+
+    limits = BudgetLimits(
+        max_paid_calls=10,
+        max_input_tokens=10**6,
+        max_output_tokens=10**6,
+        max_estimated_cost_usd=1.0,
+    )
+    adapter = FakeAdapter(broken, paid=True)
+    result = run(cfg(budget=limits, pricing=PRICING), store, adapter)
+    assert result.status == "failed"
+    assert result.budget["paid_calls"] == 1
+    assert result.budget["estimated_cost_usd"] > 0
+    budget = json.loads(store.get_run(result.run_id)["budget_json"])
+    assert [c["outcome"] for c in budget["unfinished_turn_calls"]] == ["unexpected_error"]

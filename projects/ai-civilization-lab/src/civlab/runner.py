@@ -25,7 +25,6 @@ from civlab.redaction import redact
 from civlab.store import ExperimentStore
 from civlab.world import (
     WorldEngine,
-    WorldState,
     canonical_json,
     make_initial_state,
     state_hash,
@@ -157,9 +156,9 @@ class SimulationRunner:
                 "provenance_json": canonical_json(self.provenance),
                 "initial_state_json": canonical_json(initial),
                 "initial_state_hash": initial_hash,
-            }
+            },
+            initial,
         )
-        self.store.record_initial_state(run_id, initial, initial_hash)
         log.info("run %s started (%s, %s)", run_id, self.adapter.name, self.adapter.model)
 
         status, error, error_kind = "completed", None, None
@@ -211,7 +210,6 @@ class SimulationRunner:
             self._finish(
                 run_id,
                 "interrupted",
-                state,
                 guard,
                 "KeyboardInterrupt",
                 "interrupted",
@@ -223,12 +221,14 @@ class SimulationRunner:
             status, error, error_kind = "failed", f"{type(exc).__name__}: {exc}", "exception"
             log.exception("run %s failed", run_id)
 
-        self._finish(run_id, status, state, guard, error, error_kind, current_turn, pending)
+        last_turn, last_hash = self._finish(
+            run_id, status, guard, error, error_kind, current_turn, pending
+        )
         return RunResult(
             run_id=run_id,
             status=status,
-            turns_completed=state.turn,
-            final_state_hash=state_hash(state),
+            turns_completed=last_turn,
+            final_state_hash=last_hash,
             budget=guard.snapshot(),
             error=None if error is None else redact(error),
         )
@@ -237,13 +237,15 @@ class SimulationRunner:
         self,
         run_id: str,
         status: str,
-        state: WorldState,
         guard: BudgetGuard,
         error: str | None,
         error_kind: str | None,
         turn: int,
         pending: list[tuple[str, CallRecord]],
-    ) -> None:
+    ) -> tuple[int, str]:
+        """Mark the run finished. The final hash is taken from the last *stored* turn,
+        so an interrupt between a commit and the in-memory update cannot desync them."""
+        last_turn, last_hash = self.store.last_turn(run_id)
         budget = guard.snapshot()
         if pending:
             # Calls made during an unfinished turn are still accounted for.
@@ -254,10 +256,11 @@ class SimulationRunner:
             run_id,
             status=status,
             finished_at=self.clock(),
-            final_state_hash=state_hash(state),
+            final_state_hash=last_hash,
             budget=budget,
             error=error,
             error_kind=error_kind,
             error_turn=turn + 1 if error is not None else None,
         )
         log.info("run %s finished: %s", run_id, status)
+        return last_turn, last_hash

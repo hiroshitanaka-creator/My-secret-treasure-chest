@@ -75,8 +75,9 @@ class Pricing:
         return (
             self.input_per_million_usd is not None
             and self.output_per_million_usd is not None
-            and self.input_per_million_usd >= 0
-            and self.output_per_million_usd >= 0
+            # A zero price would disable the cost cap, so it does not count as configured.
+            and self.input_per_million_usd > 0
+            and self.output_per_million_usd > 0
             and bool(self.source)
             and bool(self.checked_at)
         )

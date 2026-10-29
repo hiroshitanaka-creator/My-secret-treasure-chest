@@ -109,3 +109,12 @@ def test_version(capsys) -> None:
         main(["--version"])
     assert exc.value.code == 0
     assert "civlab" in capsys.readouterr().out
+
+
+def test_verify_malformed_state_exits_with_verify_failure(capsys, tmp_path: Path) -> None:
+    db = tmp_path / "m.sqlite3"
+    cli(capsys, "run", "--config", MOCK_CONFIG, "--db", str(db))
+    with ExperimentStore(db) as s:
+        s.conn.execute("UPDATE turns SET state_json='{\"turn\": 1}' WHERE turn=1")
+    code, report = cli(capsys, "verify", "--db", str(db))
+    assert code == EXIT_VERIFY_FAILED and not report["ok"]

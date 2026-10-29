@@ -161,15 +161,19 @@ class OpenAIAdapter:
         except Exception as exc:
             raise classify_error(exc) from exc
 
-        usage = getattr(response, "usage", None)
-        if usage is None:
-            raise PermanentAdapterError("response did not report token usage")
-        return AdapterResponse(
-            raw_output=str(getattr(response, "output_text", "") or ""),
-            usage=Usage(int(usage.input_tokens), int(usage.output_tokens)),
-            model=str(getattr(response, "model", self.settings.model)),
-            status=str(getattr(response, "status", "unknown")),
-        )
+        try:
+            usage = response.usage
+            return AdapterResponse(
+                raw_output=str(getattr(response, "output_text", "") or ""),
+                usage=Usage(int(usage.input_tokens), int(usage.output_tokens)),
+                model=str(getattr(response, "model", self.settings.model)),
+                status=str(getattr(response, "status", "unknown")),
+            )
+        except Exception as exc:
+            # The call was made; the guard then counts it conservatively.
+            raise PermanentAdapterError(
+                redact(f"unusable response ({type(exc).__name__}): {exc}")[:500]
+            ) from exc
 
 
 def classify_error(exc: BaseException) -> AdapterError:

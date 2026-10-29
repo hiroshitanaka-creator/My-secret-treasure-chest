@@ -163,11 +163,26 @@ class ExperimentStore:
                 (experiment_id, description, now),
             )
 
-    def start_run(self, row: dict[str, Any]) -> None:
+    def start_run(self, row: dict[str, Any], initial_state: dict[str, Any]) -> None:
+        """Insert the run row and its turn-0 state in one transaction."""
         cols = ", ".join(row)
         marks = ", ".join("?" for _ in row)
         with self.transaction() as c:
             c.execute(f"INSERT INTO runs({cols}) VALUES ({marks})", tuple(row.values()))  # noqa: S608
+            c.execute(
+                "INSERT INTO turns(run_id, turn, state_json, state_hash, deaths_json) "
+                "VALUES (?, 0, ?, ?, '[]')",
+                (row["run_id"], _dumps(initial_state), row["initial_state_hash"]),
+            )
+
+    def last_turn(self, run_id: str) -> tuple[int, str]:
+        row = self.conn.execute(
+            "SELECT turn, state_hash FROM turns WHERE run_id = ? ORDER BY turn DESC LIMIT 1",
+            (run_id,),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"run {run_id} has no stored turns")
+        return int(row["turn"]), str(row["state_hash"])
 
     def record_turn(
         self,
@@ -182,7 +197,7 @@ class ExperimentStore:
         """Atomically store the state *after* ``turn`` plus the decisions that produced it.
 
         ``turn`` is the index of the resulting state (1..N). Turn 0 is the
-        initial state and is stored by ``record_initial_state``.
+        initial state and is stored by ``start_run``.
         """
         with self.transaction() as c:
             c.execute(
@@ -236,14 +251,6 @@ class ExperimentStore:
                 ],
             )
             c.execute("UPDATE runs SET turns_completed = ? WHERE run_id = ?", (turn, run_id))
-
-    def record_initial_state(self, run_id: str, state: dict[str, Any], state_hash: str) -> None:
-        with self.transaction() as c:
-            c.execute(
-                "INSERT INTO turns(run_id, turn, state_json, state_hash, deaths_json) "
-                "VALUES (?, 0, ?, ?, '[]')",
-                (run_id, _dumps(state), state_hash),
-            )
 
     def finish_run(
         self,

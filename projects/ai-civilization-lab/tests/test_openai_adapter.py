@@ -204,3 +204,12 @@ def test_full_paid_run_through_fake_transport(store) -> None:
     assert summary["usage"]["estimated_cost_usd"] == pytest.approx(12 * (120 + 30 * 4) / 1e6)
     assert summary["usage"]["actual_cost_usd"] is None
     assert verify_run(store, result.run_id)["ok"]
+
+
+def test_response_without_usage_is_a_permanent_error() -> None:
+    body = response_body(json.dumps(DECISION))
+    del body["usage"]
+    rec = Recorder(body=body)
+    adapter = OpenAIAdapter(SETTINGS, environ=ENABLED_ENV, client=sdk_client(rec))
+    with pytest.raises(PermanentAdapterError, match="unusable response"):
+        adapter.complete(request())
