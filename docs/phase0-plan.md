@@ -13,7 +13,7 @@
 | 住民 6 人×10 ターンを実行できる | 満たした | `configs/mock-6x10.toml` |
 | 実験結果が保存される | 満たした | SQLite（[architecture.md](architecture.md)） |
 | 再現性テストが通る | 満たした | 固定ハッシュのテスト（Linux 3.11〜3.14 と CI で一致） |
-| 静的解析と単体テストが成功する | 満たした | ruff、mypy strict、pytest 166 件 |
+| 静的解析と単体テストが成功する | 満たした | ruff、mypy strict、pytest 175 件 |
 | CI の定義がある | 満たした | `.github/workflows/ci.yml` |
 | GitHub CI の結果を確認した | 満たした | [HANDOFF_TO_GPT.md](HANDOFF_TO_GPT.md) に Run URL を記載 |
 | API の実消費が 0 ドル | 満たした | 有料の呼び出しを行うコードを一度も実行していない（OpenAI へのテストはすべて偽の通信路） |

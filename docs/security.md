@@ -13,7 +13,7 @@
 2. 環境変数 `CIVLAB_ALLOW_PAID_API=yes`
 3. 環境変数 `OPENAI_API_KEY`
 4. `[budget]` で `max_paid_calls > 0`、`max_input_tokens`、`max_output_tokens`、`max_estimated_cost_usd` を設定
-5. `[pricing]` に、公式の料金ページから人が写した単価と `source`・`checked_at`
+5. `[pricing]` に、公式の料金ページから人が写した単価（0 より大きい値。0 だとコスト上限が効かなくなるため、設定済みとは扱わない）と `source`・`checked_at`
 
 1〜3 のどれかが欠けると、アダプターを作る段階で `PaidApiDisabledError` になります。4〜5 が欠けると、呼び出す前に Budget Guard が拒否します。`civlab check-config` で、今どの条件が欠けているかを確かめられます（通信はしません）。
 
