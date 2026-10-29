@@ -1,0 +1,106 @@
+# CI for the AI Civilization Lab. Never calls paid APIs: no secrets are passed to
+# any job, and the paid-API enable variable is forced empty.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Belt and braces: even if someone adds repository secrets later, this
+  # workflow keeps the paid adapter disabled.
+  CIVLAB_ALLOW_PAID_API: ""
+  OPENAI_API_KEY: ""
+  UV_VERSION: "0.13.6"
+
+jobs:
+  repo-safety:
+    name: Repository safety (forbidden files, secret patterns, full history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: python tools/check_repo_safety.py --history
+
+  test:
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.14"]
+    defaults:
+      run:
+        working-directory: projects/ai-civilization-lab
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ matrix.python }}
+          working-directory: projects/ai-civilization-lab
+          enable-cache: false
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Syntax check (byte-compile)
+        run: uv run --locked python -m compileall -q src tests
+      - name: Lint
+        run: uv run --locked ruff check .
+      - name: Format check
+        run: uv run --locked ruff format --check .
+      - name: Type check
+        run: uv run --locked mypy
+      - name: Unit tests (network blocked inside tests)
+        run: uv run --locked pytest
+      - name: Mock smoke run (6 residents x 10 turns, no API key)
+        run: >
+          uv run --locked civlab run --config configs/mock-6x10.toml
+          --db "${{ runner.temp }}/ci-smoke.sqlite3"
+      - name: Verify the smoke run by replay
+        run: uv run --locked civlab verify --db "${{ runner.temp }}/ci-smoke.sqlite3"
+
+  dependency-audit:
+    name: Dependency vulnerability audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: projects/ai-civilization-lab
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.13"
+          working-directory: projects/ai-civilization-lab
+          enable-cache: false
+      - name: Export the locked dependency set
+        run: >
+          uv export --locked --all-groups --all-extras --no-emit-project
+          --format requirements-txt -o "${{ runner.temp }}/requirements-audit.txt"
+      - name: pip-audit (hash-pinned, no resolution)
+        run: >
+          uv run --locked --only-group audit pip-audit
+          -r "${{ runner.temp }}/requirements-audit.txt"
+          --require-hashes --disable-pip --progress-spinner off
