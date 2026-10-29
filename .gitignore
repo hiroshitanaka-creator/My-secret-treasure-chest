@@ -1,0 +1,32 @@
+# Secrets: never commit real environment files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Experiment data (local runs; share results through reports, not raw DBs)
+runs/
+*.sqlite3
+*.sqlite
+*.db
+STOP
+
+# Claude Code personal files
+.claude/settings.local.json
+CLAUDE.local.md
+
+# OS files
+.DS_Store
+Thumbs.db
