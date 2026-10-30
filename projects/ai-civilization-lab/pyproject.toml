@@ -1,0 +1,68 @@
+[project]
+name = "civlab"
+version = "0.1.0"
+description = "AI Civilization Lab: phase-0 development foundation (deterministic world engine + mock agents)"
+requires-python = ">=3.11"
+license = "MIT"
+# The core runs on the standard library only. Optional extras add external SDKs.
+dependencies = []
+
+[project.optional-dependencies]
+# Real OpenAI connection (not used in phase 0; gated by config + env var + budget).
+openai = ["openai>=3.41,<4"]
+
+[project.scripts]
+civlab = "civlab.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2",
+    "ruff>=0.17",
+    "mypy>=2.4",
+    # Installed so the OpenAI adapter can be tested against the real SDK
+    # with an in-process fake transport (no network, no API key).
+    "openai>=3.41,<4",
+]
+audit = [
+    "pip-audit>=2.10",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/civlab"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers"]
+xfail_strict = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
+# S311: the simulation needs reproducible pseudo-randomness, not cryptographic randomness.
+ignore = ["S311"]
+
+[tool.ruff.lint.per-file-ignores]
+# assert is the pytest idiom; tests use fixed fake credentials on purpose.
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src", "tests"]
+strict = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false

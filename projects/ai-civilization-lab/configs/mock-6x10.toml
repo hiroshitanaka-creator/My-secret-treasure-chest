@@ -1,0 +1,27 @@
+# Phase-0 smoke experiment: 6 residents, 10 turns, mock decisions, no external API.
+
+[experiment]
+id = "phase0-mock-6x10"
+description = "Phase 0 smoke run: deterministic mock residents, no external API"
+split = "dev"
+
+[world]
+residents = 6
+turns = 10
+seed = 20261030
+
+[agent]
+adapter = "mock"
+model = "mock-heuristic-v1"
+prompt_version = "resident-v0.1"
+
+[budget]
+max_calls = 200
+max_paid_calls = 0            # 0 = paid API calls are refused
+max_input_tokens = 0
+max_output_tokens = 0
+max_estimated_cost_usd = 0.0
+max_retries = 2
+
+[openai]
+allow_paid_api = false
